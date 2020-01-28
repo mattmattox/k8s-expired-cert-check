@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: k8s-expired-cert-check
+  namespace: kube-system
+  labels:
+    k8s-app: k8s-expired-cert-check
+spec:
+  selector:
+    matchLabels:
+      k8s-app: k8s-expired-cert-check
+  template:
+    metadata:
+      labels:
+        k8s-app: k8s-expired-cert-check
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/controlplane
+                operator: In
+                values:
+                - "true"
+            - matchExpressions:
+              - key: node-role.kubernetes.io/etcd
+                operator: In
+                values:
+                - "true"
+      containers:
+      - image: cube8021/k8s-expired-cert-check
+        imagePullPolicy: IfNotPresent
+        name: k8s-expired-cert-check
+        volumeMounts:
+        - mountPath: /etc/kubernetes/ssl/
+          name: kubernetes-certs
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      tolerations:
+      - effect: NoExecute
+        key: node-role.kubernetes.io/etcd
+        operator: Equal
+        value: "true"
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/controlplane
+        operator: Equal
+        value: "true"
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/ssl/
+          type: ""
+        name: kubernetes-certs
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
